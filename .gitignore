@@ -1,3 +1,17 @@
+# Editor files
+.DS_Store
+.idea
+
+# Files from local repo to be excluded
+master_thesis.docx
+other/
+scripts/
+test_loader.py
+tsp_checkpoints/
+checkpoints/*.csv
+test.ipynb
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -77,6 +91,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+main.ipynb
 
 # IPython
 profile_default/
