@@ -1,0 +1,11 @@
+numpy
+pandas
+scipy
+matplotlib
+tqdm
+python-dotenv
+networkx
+pydantic
+pymongo
+torch
+torch_geometric
