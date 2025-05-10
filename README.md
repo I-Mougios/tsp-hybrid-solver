@@ -1,6 +1,6 @@
 # Hybrid TSP Solver
 
-A research project for my master's dissertation exploring the use of **Graph Neural Networks (GNNs)** to solve the **Traveling Salesman Problem (TSP)**. The project integrates a traditional **Linear Programming (LP)** solver to generate optimal routes and a **PyTorch Geometric**-based GNN to learn from those solutions. The infrastructure includes a **MongoDB** backend and containerized execution using **Docker**.
+A research project exploring the use of **Graph Neural Networks (GNNs)** to solve the **Traveling Salesman Problem (TSP)**. The project integrates a traditional **Linear Programming (LP)** solver to generate optimal routes and a **PyTorch Geometric**-based GNN to learn from those solutions. The infrastructure includes a **MongoDB** backend and containerized execution using **Docker**.
 
 ---
 ## 📁 Project Structure
