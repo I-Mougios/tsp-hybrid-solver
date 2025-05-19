@@ -54,7 +54,7 @@ for size in [20, 35, 50]:
         coords = generate_clustered_tsp_data(num_cities=size,
                                             num_clusters=num_of_clusters,
                                             cluster_std=cluster_std,
-                                            seed=i)
+                                             )
 
         tsp = TSP(coords)
         tsp.solve(verbose=False)

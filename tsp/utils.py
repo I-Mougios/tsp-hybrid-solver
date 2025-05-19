@@ -66,7 +66,7 @@ def _(obj: np.int64):
 
 
 # Function to generate clustered city coordinates
-def generate_clustered_tsp_data(num_cities=100, num_clusters=5, cluster_std=5, seed=42):
+def generate_clustered_tsp_data(num_cities=100, num_clusters=5, cluster_std=5, seed=None):
     """
     Generate TSP data with cities distributed in clusters.
 
@@ -79,7 +79,8 @@ def generate_clustered_tsp_data(num_cities=100, num_clusters=5, cluster_std=5, s
     Returns:
     - pd.DataFrame: A DataFrame containing city coordinates.
     """
-    np.random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
 
     # Generate cluster centers
     cluster_centers = np.random.uniform(0, 100, size=(num_clusters, 2))
