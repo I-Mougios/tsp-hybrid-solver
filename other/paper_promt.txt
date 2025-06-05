@@ -1,0 +1,503 @@
+I have completed my research  am about to start writing the paper for my Master thesis.
+I need your help to write it.
+Could I attach the subject of my thesis and what I have done in order to help me write the paper.
+Moreover, I have some general guidelines from my professor about the structure of the paper.
+
+====================================================================================
+___________________SOLVER_____________________________________________________________
+1. Subject of my thesis:
+Use of GNN for the Travelling Salesperson Problem.
+
+2. In a blueprint I will describe you the notion behind the master thesis:
+
+The Traveling Salesperson Problem (TSP) is a classic combinatorial optimization problem in graph theory and operations research. It involves finding the shortest possible route that visits a given set of cities exactly once and returns to the starting point. TSP is NP-hard, meaning that no efficient algorithm is known for solving it optimally in all cases.
+
+In its symmetric form, the distance (or cost) between any two cities is the same in both directions—i.e., the cost from city A to city B is equal to the cost from city B to city A. This contrasts with the asymmetric TSP, where travel costs may differ depending on direction.
+
+Mathematical Formulation (Symmetric TSP)
+
+    min ∑(Ce * ye)   for each e ∈ E
+
+    subject to:
+
+    ∑(ye) = 2   for each v ∈ V, where e ∈ N(v)
+
+    ∑(ye) ≤ |S| - 1   for each S ⊂ V, where 2 ≤ |S| ≤ |V| - 1
+
+Description of Constraints:
+- Since this is the symmetric version of the problem, the cost matrix is symmetric: Cij = Cji = Ce.
+- The first constraint ensures that each city is part of exactly two edges: one as the departure city and one as the arrival city.
+- The second constraint eliminates subtours, ensuring that the solution forms a Hamiltonian cycle—i.e., a tour that visits every city exactly once and returns to the starting point.
+
+Important Note:
+The number of possible subtours in a TSP instance grows exponentially with the number of nodes. The total number of subtours is given by:
+
+    ∑(N! / (M!(N-M)!))   for each M ∈ [2, N-1]
+
+where N is the total number of cities, and M represents the length of a possible subtour.
+
+Using this mathematical formulation I have build a solver using mainly scipy and linprog(integer linear programming). Of course I inserted initially only the first constraint(equalities constraints)
+and I eliminated subtours gradually by adding the inequality constraints for the subtours only when they appeared in the solution. The process of adding inequality constraints stops when the solution from lingprog
+does not have subtour.
+
+Below I will attach a part of the implementation to understand more about the solver:
+
+class TSP:
+    all = []
+
+    def __init__(self,
+                 coordinates:  np.ndarray | pd.DataFrame,
+                 distance_metric: str = 'euclidean'):
+
+        if isinstance(coordinates, pd.DataFrame):
+            coordinates =  coordinates.to_numpy()
+
+        self._coordinates = coordinates
+        self.distance_metric = distance_metric
+        self.n_points = self.coordinates.shape[0]
+        self._distances = None
+        self._equality_constraints_matrix = None
+        self._inequality_constraints_matrix = None
+        self._inequality_constraints_rhs = None
+        self._result = None
+        self._optimal_tour = None
+        self._minimum_distance = None
+        self._decision_variables = None
+        self._while_loop_iterations = 0
+        self._elapsed_time = None
+
+    @property
+    def equality_constraints_matrix(self) -> csr_matrix:
+        if self._equality_constraints_matrix is None:
+            # Create the pairs of points. Pairs of points are actually the possible trips
+            idxs = list(combinations(range(self.number_of_points), r=2))
+            number_of_pairs = len(idxs)
+
+            # Initialize an empty matrix
+            # Use a sparse DOK matrix for initial construction
+            equality_constraints_matrix = dok_matrix((self.number_of_points, number_of_pairs), dtype=int)
+
+            # Precompute trips for each town using defaultdict
+            town_to_trips = defaultdict(list)
+            # Gather the trips per each town
+            for trip_idx, (a, b) in enumerate(idxs):
+                town_to_trips[a].append(trip_idx)
+                town_to_trips[b].append(trip_idx)
+
+
+            for town, trips in town_to_trips.items():
+                equality_constraints_matrix[town, trips] = 1
+
+            self._equality_constraints_matrix =  equality_constraints_matrix.tocsr()
+
+        return self._equality_constraints_matrix
+
+    def solve(self, verbose: bool = False) -> None:
+
+        distances_df = pd.DataFrame(data=self.distances,
+                                    index=tuple(combinations(range(self.number_of_points),
+                                                             r=2)
+                                                )
+                                    )
+
+        start_time = perf_counter()
+        result = res = linprog(self.distances,
+                               A_eq=self.equality_constraints_matrix,
+                               b_eq=self.equality_constraints_rhs,
+                               bounds=(0, 1),
+                               integrality=1)
+
+        # assert self.number_of_points == sum(map(bool_, result.x))
+
+        # Optimal solution with subtours
+        subtours = find_subtours(solution_array=result.x,
+                                 distances_df=distances_df)
+
+        if res.success:
+            if len(subtours) > 1:
+                # Each constraint will be a single row sparse matrix
+                ineq_constraints_rows = []
+                b_ineq = np.array([])  # Right-hand side of the inequality constraints
+        else:
+            print(result.message)
+
+        if verbose:
+            print('Number of subtours: ', len(subtours))
+            print('Minimum distance: ', result.fun)
+
+        while len(subtours) > 1:
+            self._while_loop_iterations += 1
+            for idx, subtour in enumerate(subtours):
+
+                # Sort the subtour to ensure deterministic generation of combinations
+                subtour = sorted(subtour)
+
+                # Generate all possible edges (combinations of 2 nodes) within the subtour
+                subtour_edges = list(combinations(subtour, 2))
+
+                # Add a new row to the DOK matrix for the current subtour
+                new_row = dok_matrix((1, len(distances_df.index)), dtype=int)
+                for edge in subtour_edges:
+                    # If the subtour has three edges A, B, C then in order to break the subtour
+                    # I have to implement the constraint 1*A + 1*B + 1*C < 2
+                    edge_index = distances_df.index.get_loc(edge)
+                    # Set the coefficient of the trip equal to 1
+                    new_row[0, edge_index] = 1
+
+                ineq_constraints_rows.append(new_row)
+
+                # Update the right-hand side for the new constraint
+                b_ineq = np.append(b_ineq, len(subtour) - 1)
+
+            # Convert the DOK matrix to CSR for computation
+            A_ineq = vstack(ineq_constraints_rows).tocsr()
+
+            # Solve the problem with the updated constraints
+            result = linprog(self.distances,
+                          A_eq=self.equality_constraints_matrix,
+                          b_eq=self.equality_constraints_rhs,
+                          A_ub=A_ineq,
+                          b_ub=b_ineq,
+                          bounds=(0, 1),
+                          integrality=1)
+
+            if result.success:
+                subtours = find_subtours(solution_array=result.x,
+                                         distances_df=distances_df)
+            else:
+                print(result.message)
+                break
+
+            if verbose:
+                print('Number of subtours: ', len(subtours))
+                print('Minimum distance: ', result.fun)
+        # End of while loop
+        end_time = perf_counter()
+        if "A_ineq" in locals():
+            self._inequality_constraints_matrix = A_ineq
+        if "b_ineq" in locals():
+            self._inequality_constraints_rhs = b_ineq
+
+        self._result = result
+        self._minimum_distance = result.fun
+        self._decision_variables = result.x
+        self._elapsed_time = (end_time - start_time) / 60
+        self.find_optimal_tour()
+        self.all.append(self)
+
+===========================================GRAPH-GNN============================================================================
+My target now is to model this problem using GNN. I have create a collection of 30.000 solved tsp instances and I want to train a GNN using this collection.
+
+A description of the problem using the terminology of graph theory is :
+
+# Traveling Salesperson Problem (TSP) in Graph Theory
+
+The **Traveling Salesperson Problem (TSP)** can also be described using **graph theory**. The problem can be modeled as a **fully connected, undirected graph** ( G(V, E) ) in its symmetric form.
+
+Even though **graph theory** does not inherently include the concepts of **position** or **ordering** of vertices, the TSP can still be formulated using only the **transition costs** between towns. In this representation, the set of **edges** \( E \) consists of all possible transitions between vertices, making the graph **complete** (i.e., every pair of vertices is connected by an edge).
+
+Graph Representation of the Solution
+
+A **solution** to the TSP can also be represented as a graph. The **set of vertices** \( V \) remains unchanged, but the **set of edges** ( E* ) must form a **Hamiltonian cycle**—a cycle that:
+1. **Visits each vertex exactly once**
+2. **Returns to the starting vertex**
+
+The optimal solution is the Hamiltonian cycle with the **minimum total cost** among all possible Hamiltonian cycles in the graph. Mathematically, the goal is to find a subset of edges ( E* subset of E ) such that:
+
+- \( |E*| = |V| \) (Each vertex has exactly two incident edges, forming a cycle)
+- The **degree** of each vertex is exactly **two**, meaning each vertex is connected to exactly
+- \( G(V, E*)) is connected and contains no **subtours**
+- The total cost \( sum_{e in E*} ) is minimized
+- The degree of each node is
+
+Since the number of possible Hamiltonian cycles grows **exponentially** with \( |V| \), solving TSP efficiently remains a computational challenge even with gradually elimination of subtours. That's why I want to do try an approach with GNN
+even if the models does not always return the optimal solution(At leat it will provide a solution close to optimal.)
+
+Below is attached one solved training sample of a tsp instance.
+
+
+{
+    _id: ObjectId('68028e2172cb27455151e3fe'),
+    number_of_points: 20,
+    distance_metric: 'euclidean',
+    coordinates: [
+      [ 22.035257719233492, 46.881231688206405 ],
+      [ 17.556910672546643, 26.213026103020376 ],
+      [ 65.67743946521148, 93.66367127678762 ],
+      [ 35.33325714531299, 84.04739193511918 ],
+      [ 11.805981255783104, 62.101268263969146 ],
+      [ 99.23581751668567, 79.31256960838492 ],
+      [ 40.584080606919684, 27.44293211675283 ],
+      [ 61.18890928944928, 0.14455231175564132 ],
+      [ 58.154449714762166, 4.016863624754485 ],
+      [ 44.04673177597965, 82.54312328445438 ],
+      [ 90.61269897699334, 61.68703919861345 ],
+      [ 12.849417888061708, 57.1561061380576 ],
+      [ 47.14531243231149, 44.23938856245756 ],
+      [ 22.505715545500806, 2.6915516791515492 ],
+      [ 91.19892660457568, 14.39818012787919 ],
+      [ 56.54389223173425, 46.21667193914224 ],
+      [ 16.161419437911682, 42.707760193474456 ],
+      [ 38.820005025548355, 20.070029353404138 ],
+      [ 34.1781336768474, 18.969230393902038 ],
+      [ 63.48438911018468, 36.55476481959792 ]
+    ],
+    decision_variables: [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+      0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 1, 0, 0
+    ],
+    optimal_tour: [
+       0, 11,  4,  3,  9,  2,  5,
+      10, 14,  7,  8, 19, 15, 12,
+       6, 17, 18, 13,  1, 16
+    ],
+    minimum_distance: 378.41193424785644,
+    subtour_revisions: 2,
+    elapsed_time: 0.00012679166672266244
+  }
+
+ Overview of GNN and beamsearch.
+
+ The model trained to predict a probability of an edge to belong to the hamiltonian cycle of the optimal solution. During training no beamsearch implemented.
+ In the test set(predictions). I use the GNN to get the probability of edges belonging to optimal tour and then I pass this output to beamsearch that reassures that
+ the optimal solution is a valid TSP solution.
+
+class TSPGNN(torch.nn.Module):
+    """Edge-prediction GNN for TSP.
+
+    Args:
+        node_dim (int): Dummy node feature dimension (set to 1 since we ignore coordinates).
+        edge_dim (int): Edge feature dimension (1 for distances).
+        hidden_dim (int): Hidden layer dimension. Default: 64.
+        num_heads (int): Number of GAT attention heads. Default: 4.
+    """
+    def __init__(self, node_dim=2, edge_dim=16, hidden_dim=64, num_heads=4):
+        super().__init__()
+
+        # Node encoder to capture the spatial information of the node (relative position)
+        self.node_encoder = nn.Sequential(
+            nn.Linear(node_dim, hidden_dim),  # 2D coordinates → hidden_dim
+            nn.LeakyReLU(0.2),
+            nn.LayerNorm(hidden_dim)
+            )
+
+        # Edge feature transformation (distance encoding):
+        # Why we need this:
+        # 1. Raw distances may not have linear relationship with edge importance
+        #    - Very short distances may be exponentially more important than medium ones
+        #    - Very long distances may be completely irrelevant
+        # 2. Allows learning different distance thresholds for different graphs
+        # 3. Projects scalar distances into a more expressive feature space
+        # Architecture choice:
+        # - Bottleneck design (1->16->1) prevents overfitting while adding non-linearity
+        # - Final dimension remains 1 to match edge_dim and avoid architecture changes
+         # More expressive edge encoder
+        self.edge_encoder = nn.Sequential(
+            nn.Linear(1, 32),  # Wider network
+            nn.LeakyReLU(0.2),
+            nn.Linear(32, edge_dim),  # Higher output dimension
+            nn.LayerNorm(edge_dim)  # Added normalization
+        )
+
+        # First GAT Layer:
+        # Input shapes:
+        #   - Node features: (N x node_dim)
+        #   - Edge indices: (2 x E)
+        #   - Edge attributes: (E x edge_dim)
+        #
+        # Transformations:
+        # 1) Linear projection: (N x node_dim) -> (N x hidden_dim * num_heads)
+        #    - Each head gets hidden_dim features
+        # 2) Attention mechanism computes attention coefficients:
+        #    - For each edge (i,j), computes attention score using:
+        #      [h_i || h_j] @ a where a is (2*hidden_dim x 1)
+        #    - Applies LeakyReLU and softmax normalization
+        # 3) Aggregation:
+        #    - For each node, weighted sum of neighbors' projected features
+        #    - Output: (N x hidden_dim * num_heads)
+        self.conv1 = GATConv(hidden_dim,
+                             hidden_dim,
+                             edge_dim=edge_dim,
+                             heads=num_heads,
+                             concat=True,
+                             dropout=0.4)
+
+        self.norm1 = nn.LayerNorm(hidden_dim * num_heads)
+
+        # Second GAT Layer:
+        # Input shapes:
+        #   - Node features: (N x hidden_dim * num_heads)
+        #   - Edge indices: (2 x E)
+        #   - Edge attributes: (E x edge_dim)
+        #
+        # Transformations:
+        # 1) Linear projection: (N x hidden_dim*num_heads) -> (N x hidden_dim)
+        #    - Single head output this time
+        # 2) Same attention mechanism as first layer but with:
+        #    - a is now (2*hidden_dim x 1)
+        # 3) Aggregation outputs: (N x hidden_dim)
+        self.conv2 = GATConv(
+            in_channels=hidden_dim * num_heads,
+            out_channels=hidden_dim,
+            edge_dim=edge_dim,
+            heads=1,  # Single head
+            concat=False,  # No concatenation (just average heads)
+            dropout=0.3,
+        )
+
+        self.norm2 = nn.LayerNorm(hidden_dim)
+
+        # Edge Prediction MLP:
+        # Input shapes for each edge:
+        #   - Concatenated [h_i, h_j, edge_attr]: (2*hidden_dim + edge_dim)
+        # Transformations:
+        # 1) Linear: Input: (hidden_dim + edge_dim) -> Output: (hidden_dim)
+        # 2) ReLU activation
+        # 3) Linear: (hidden_dim) -> (1)
+        # 4) Sigmoid activation for probability
+        # 5) Output: (E, 1)
+        self.edge_mlp = nn.Sequential(
+            nn.Linear(2*hidden_dim + edge_dim, hidden_dim),
+            nn.LeakyReLU(negative_slope=0.1),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    def forward(self, data):
+
+        # Initialize node features
+        # self.node_embed: (1 x node_dim)
+        # Expanded to: (N x node_dim)
+        # x = self.node_embed.expand(data.num_nodes, -1).to(data.edge_index.device)
+        x = self.node_encoder(data.x) # [N, 2] -> [N, hidden_dim]
+        edge_attr = data.edge_attr.unsqueeze(1)  # Shape [190] -> [190, 1]
+        edge_attr = self.edge_encoder(edge_attr)  # # [E] -> [E, edge_dim] - [E, 16]
+
+        # First GAT Layer
+        # Input x: (N x node_dim)
+        # Output x: (N x hidden_dim * num_heads)
+        x = self.conv1(x, data.edge_index, edge_attr)
+        x = self.norm1(F.leaky_relu(x, 0.1))  # Apply norm
+        # Second GAT Layer
+        # Input x: (N x hidden_dim * num_heads)
+        # Output x: (N x hidden_dim)
+        x = self.conv2(x, data.edge_index, edge_attr)
+        x = self.norm2(F.leaky_relu(x, 0.1))  # Apply norm
+        # Prepare edge features
+        # row, col: (E,) each
+        # x[row]: (E x hidden_dim)
+        # x[col]: (E x hidden_dim)
+        # data.edge_attr: (E x edge_dim)
+        # edge_emb: (E x (2*hidden_dim + edge_dim))
+        row, col = data.edge_index
+        edge_emb = torch.cat([x[row], x[col], edge_attr], dim=1)
+
+        # Edge predictions
+        # Output: (E,) (squeezed from (E x 1))
+        return self.edge_mlp(edge_emb).squeeze()
+
+def beamsearch(probabilities, edge_index, number_of_nodes, beam_size=5, n_candidates_per_beam_length=15):
+    # Create the probabilities matrix
+    prob_matrix = torch.zeros(size=(number_of_nodes, number_of_nodes))
+    for i, (node_i, node_j) in enumerate(edge_index.t().tolist()):
+        prob_matrix[node_i, node_j] = probabilities[i]
+        prob_matrix[node_j, node_i] = probabilities[i]
+
+    # Create the nodes (Needed to create the mask)
+    nodes_indices = torch.arange(number_of_nodes)
+
+    # Start from node 0 --> dict[tour, score]
+    beams = {(0, ): 0}
+    new_beams = {}
+    # We want to create a hamiltonian cycle by adding n-1 nodes to the tour
+    for _ in range(number_of_nodes -1):
+        # In each iteration all the tours of previous iteration will be removed
+        # In each iteration beam_size * number_of_tours_of_previous_iteration will be added
+        for tour, score in beams.items():
+            last_node = tour[-1]
+            transition_probs_from_last_node = prob_matrix[last_node]
+
+             # Mask the non-visited nodes by excluding those already in the current tour
+             # If it is the tour the isin will return True(visited), and after the negation it return the non-visited
+            non_visited_nodes_mask = ~torch.isin(elements=nodes_indices, test_elements=torch.tensor(tour)) # output [True, False, False ...] size=number of nodes
+            indices_of_non_visited_nodes = nodes_indices[non_visited_nodes_mask]
+
+            # Apply the mask to the transition probabilities(Only non visited nodes as candidates for the next destination)
+            possible_transitions = transition_probs_from_last_node[non_visited_nodes_mask]
+
+            # This line is required when the beam_size will be larger than the possible nodes
+            # So the topk will fail
+            k = min(beam_size, possible_transitions.size(0))
+
+            # Find top-k (beam_size) transitions - topk --> values, indices
+            # The magic is that indices_of_non_visited_nodes are one to one with the possible_transitions tensor
+            probs, topk_nodes_indices = torch.topk(possible_transitions, k=k)
+
+            # We need to map the topk_nodes_indices tensor back to the original tensor's index positions
+            original_indices = indices_of_non_visited_nodes[topk_nodes_indices]
+            next_nodes = nodes_indices[original_indices]
+
+            # Add the new tours
+            for prob, node in zip(probs, next_nodes):
+                new_beams[tour + (node.item(),)] = score + prob.item()
+            # ====== Increased beam length by one  for all of beams ========================
+
+        # Select the top candidates(highest product of probabilities) from the new beam after this iteration(Redude computations)
+        top_candidates = sorted(new_beams.items(), key=lambda x: x[1], reverse=True)[:n_candidates_per_beam_length]
+
+        beams = dict(top_candidates)
+
+        new_beams.clear()
+
+    # ==================Final beams=====================================
+    # Beam with the highest probability is the most possible optimal tour
+    predicted_optimal_tour = sorted(beams.items(), key=lambda t: t[1], reverse=True)[0][0] #[(tour1, prob1), (tour2, prob2)... ]
+
+    return predicted_optimal_tour
+
+
+=====================================================GUIDLINES============================================================
+
+Sections:
+
+1. Introduction
+
+2. Travelling Salesperson Problem
+2.1. Problem Statement
+2.2 Modelling Approaches
+2.3 Computational Complexity
+2.4 Literature Review for Solution Methods
+2.5  .My implementation and an example only with the solver.
+
+3. Graph Neural Network
+Rest studies on the field
+NN selected
+Supervised and Unsupervised
+Method for Training and Testing, i.e., we employ the results from the Exact method for training
+
+4. Experimentation and Results
+
+4.1) Data Generation, describe all cases (include images ?)
+	Dataset (Dimension, Uniform)
+
+4.2) Design of Experiments, e.g.,  how many datasets generated, % of testing
+
+Describe technicalities, e.g., use of MongoDB, Limitations
+30k Datasets → Input (1 Ενιαίο Dataset - D_NN) to NN
+
+4.3) Results, Description and Justification
+
+5.Conclusions

@@ -1,0 +1,26 @@
+# Create a docker container from the official MongoDB  image
+# Configurations (Expose port 27017 if the application run locally)
+# Create a named volume so data stored in database persists
+docker run -d \
+  --name tsp_mongo \
+  -p 27017:27017 \
+  --env-file ./container/mongo.env \
+  -v tsp_data:/data/db \
+  mongo
+
+# Run container of MongoDb interactively
+docker exec -it tsp_mongo mongosh
+
+# Authorize admin user
+use admin
+db.auth('root', 'secret')
+
+# Connect to tsp_database
+
+use tsp_database
+
+# Fetch all documents or count all documents
+
+db.tsp_solutions.find().pretty()
+
+db.tsp_solutions.countDocuments()

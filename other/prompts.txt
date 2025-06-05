@@ -1,0 +1,113 @@
+The Traveling Salesperson Problem (TSP) is a classic combinatorial optimization problem in graph theory and operations research. It involves finding the shortest possible route that visits a given set of cities exactly once and returns to the starting point. TSP is NP-hard, meaning that no efficient algorithm is known for solving it optimally in all cases.
+
+In its symmetric form, the distance (or cost) between any two cities is the same in both directions—i.e., the cost from city A to city B is equal to the cost from city B to city A. This contrasts with the asymmetric TSP, where travel costs may differ depending on direction.
+
+Mathematical Formulation (Symmetric TSP)
+
+    min ∑(Ce * ye)   for each e ∈ E
+
+    subject to:
+
+    ∑(ye) = 2   for each v ∈ V, where e ∈ N(v)
+    
+    ∑(ye) ≤ |S| - 1   for each S ⊂ V, where 2 ≤ |S| ≤ |V| - 1
+
+Description of Constraints:
+- Since this is the symmetric version of the problem, the cost matrix is symmetric: Cij = Cji = Ce.
+- The first constraint ensures that each city is part of exactly two edges: one as the departure city and one as the arrival city.
+- The second constraint eliminates subtours, ensuring that the solution forms a Hamiltonian cycle—i.e., a tour that visits every city exactly once and returns to the starting point.
+
+Important Note:
+The number of possible subtours in a TSP instance grows exponentially with the number of nodes. The total number of subtours is given by:
+
+    ∑(N! / (M!(N-M)!))   for each M ∈ [2, N-1]
+
+where N is the total number of cities, and M represents the length of a possible subtour.
+
+Using this mathematical formulation I have build a solver using mainly scipy and linprog(integer linear programming). Of course I inserted initially only the first constraint(equalities constraints)
+and I eliminated subtours gradually by adding the inequality constraints for the subtours only when they appeared in the solution. The process of adding inequality constraints stops when the solution from lingprog
+does not have subtour.
+
+My target now is to model this problem using GNN. I have create a collection of 30.000 solved tsp instances and I want to train a GNN using this collection.
+
+A description of the problem using the terminology of graph theory is :
+
+# Traveling Salesperson Problem (TSP) in Graph Theory  
+
+The **Traveling Salesperson Problem (TSP)** can also be described using **graph theory**. The problem can be modeled as a **fully connected, undirected graph** ( G(V, E) ) in its symmetric form.  
+
+Even though **graph theory** does not inherently include the concepts of **position** or **ordering** of vertices, the TSP can still be formulated using only the **transition costs** between towns. In this representation, the set of **edges** \( E \) consists of all possible transitions between vertices, making the graph **complete** (i.e., every pair of vertices is connected by an edge).  
+
+Graph Representation of the Solution  
+
+A **solution** to the TSP can also be represented as a graph. The **set of vertices** \( V \) remains unchanged, but the **set of edges** ( E* ) must form a **Hamiltonian cycle**—a cycle that:  
+1. **Visits each vertex exactly once**  
+2. **Returns to the starting vertex**  
+
+The optimal solution is the Hamiltonian cycle with the **minimum total cost** among all possible Hamiltonian cycles in the graph. Mathematically, the goal is to find a subset of edges ( E* subset of E ) such that:  
+
+- \( |E*| = |V| \) (Each vertex has exactly two incident edges, forming a cycle)  
+- The **degree** of each vertex is exactly **two**, meaning each vertex is connected to exactly
+- \( G(V, E*)) is connected and contains no **subtours**  
+- The total cost \( sum_{e in E*} ) is minimized  
+- The degree of each node is
+
+Since the number of possible Hamiltonian cycles grows **exponentially** with \( |V| \), solving TSP efficiently remains a computational challenge even with gradually elimination of subtours. That's why I want to do try an approach with GNN
+even if the models does not always return the optimal solution(At leat it will provide a solution close to optimal.)
+
+Below is attached one solved training sample of a tsp instance.
+
+
+{
+    _id: ObjectId('68028e2172cb27455151e3fe'),
+    number_of_points: 20,
+    distance_metric: 'euclidean',
+    coordinates: [
+      [ 22.035257719233492, 46.881231688206405 ],
+      [ 17.556910672546643, 26.213026103020376 ],
+      [ 65.67743946521148, 93.66367127678762 ],
+      [ 35.33325714531299, 84.04739193511918 ],
+      [ 11.805981255783104, 62.101268263969146 ],
+      [ 99.23581751668567, 79.31256960838492 ],
+      [ 40.584080606919684, 27.44293211675283 ],
+      [ 61.18890928944928, 0.14455231175564132 ],
+      [ 58.154449714762166, 4.016863624754485 ],
+      [ 44.04673177597965, 82.54312328445438 ],
+      [ 90.61269897699334, 61.68703919861345 ],
+      [ 12.849417888061708, 57.1561061380576 ],
+      [ 47.14531243231149, 44.23938856245756 ],
+      [ 22.505715545500806, 2.6915516791515492 ],
+      [ 91.19892660457568, 14.39818012787919 ],
+      [ 56.54389223173425, 46.21667193914224 ],
+      [ 16.161419437911682, 42.707760193474456 ],
+      [ 38.820005025548355, 20.070029353404138 ],
+      [ 34.1781336768474, 18.969230393902038 ],
+      [ 63.48438911018468, 36.55476481959792 ]
+    ],
+    decision_variables: [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+      0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 1, 0, 0
+    ],
+    optimal_tour: [
+       0, 11,  4,  3,  9,  2,  5,
+      10, 14,  7,  8, 19, 15, 12,
+       6, 17, 18, 13,  1, 16
+    ],
+    minimum_distance: 378.41193424785644,
+    subtour_revisions: 2,
+    elapsed_time: 0.00012679166672266244
+  }
