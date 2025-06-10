@@ -478,8 +478,8 @@ Sections:
 2. Travelling Salesperson Problem
 2.1. Problem Statement
 2.2 Modelling Approaches
-2.3 Computational Complexity
-2.4 Literature Review for Solution Methods
+2.3 Literature Review for Solution Methods
+2.4 Computational Complexity
 2.5  .My implementation and an example only with the solver.
 
 3. Graph Neural Network
