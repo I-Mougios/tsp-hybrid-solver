@@ -26,7 +26,7 @@ class TSPDatasetLoader(BaseJob):
                  validation_size: int= 0.1,
                  batch_size: int= 16,
                  shuffle: bool= True,
-                 random_state: bool= True,
+                 random_state: int= 42,
                  stratify: bool = True,
                  ):
         

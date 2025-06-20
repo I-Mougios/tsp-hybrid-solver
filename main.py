@@ -36,25 +36,25 @@ model = TSPGNN(node_dim=Configs.model.get("node_dim", cast=int),
                num_heads=Configs.model.get('num_heads', cast=int)
                )
 
-now = datetime.now().strftime('%Y%m%d_%H%M%S')
-training_log_path = os.path.join(save_dir, f'training_progress_{now}.txt')
-
-with redirect_stdout(open(training_log_path, mode='w')):
-    metrics = orchestrator.run_job(job_name="train_gnn_model",
-                                model=model,
-                                train_loader=train_set,
-                                val_loader=validation_set,
-                                device=device,
-                                save_dir=save_dir,
-                                lr=Configs.training.get("lr", default=1e-3, cast=float),
-                                pos_weight=Configs.training.get("pos_weight", default=3.0, cast=float),
-                                num_epochs=Configs.training.get("num_epochs", default=20, cast=int),
-                                criterion=None,  # or pass a callable if specified in config
-                                early_stopping_patience=Configs.training.get("early_stopping_patience", default=5, cast=int),
-                                gradient_clip=Configs.training.get("gradient_clip", default=1.0, cast=float),
-                                print_every=Configs.training.get("print_every", default=100, cast=int),
-                                warmup_epochs=Configs.training.get("warmup_epochs", default=2, cast=int)
-                                )
+# now = datetime.now().strftime('%Y%m%d_%H%M%S')
+# training_log_path = os.path.join(save_dir, f'training_progress_{now}.txt')
+#
+# with redirect_stdout(open(training_log_path, mode='w')):
+#     metrics = orchestrator.run_job(job_name="train_gnn_model",
+#                                 model=model,
+#                                 train_loader=train_set,
+#                                 val_loader=validation_set,
+#                                 device=device,
+#                                 save_dir=save_dir,
+#                                 lr=Configs.training.get("lr", default=1e-3, cast=float),
+#                                 pos_weight=Configs.training.get("pos_weight", default=3.0, cast=float),
+#                                 num_epochs=Configs.training.get("num_epochs", default=20, cast=int),
+#                                 criterion=None,  # or pass a callable if specified in config
+#                                 early_stopping_patience=Configs.training.get("early_stopping_patience", default=5, cast=int),
+#                                 gradient_clip=Configs.training.get("gradient_clip", default=1.0, cast=float),
+#                                 print_every=Configs.training.get("print_every", default=100, cast=int),
+#                                 warmup_epochs=Configs.training.get("warmup_epochs", default=2, cast=int)
+#                                 )
 
 # In[4]: Load best model and make predictions
 
