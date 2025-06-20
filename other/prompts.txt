@@ -111,3 +111,19 @@ Below is attached one solved training sample of a tsp instance.
     subtour_revisions: 2,
     elapsed_time: 0.00012679166672266244
   }
+
+{
+    _id: ObjectId('68028e2172cb27455151e3fe'),
+    number_of_points: 20,
+    distance_metric: 'euclidean',
+    coordinates: [
+      [ 22.035257719233492, 46.881231688206405 ],
+      [ 17.556910672546643, 26.213026103020376 ],
+      ....
+    ],
+    decision_variables: [0,0,1,0, ....],
+    optimal_tour: [0,2,3 ...],
+    minimum_distance: 378.41193424785644,
+    subtour_revisions: 2,
+    elapsed_time: 0.00012679166672266244
+  }
