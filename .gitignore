@@ -4,7 +4,6 @@
 
 # Files from local repo to be excluded
 master_thesis.docx
-other/
 scripts/
 test_loader.py
 tsp_checkpoints/
