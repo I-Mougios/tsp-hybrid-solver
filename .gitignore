@@ -9,6 +9,10 @@ test_loader.py
 tsp_checkpoints/
 checkpoints/*.csv
 test.ipynb
+other/paper_promt.txt
+other/prompts.txt
+other/structure.txt
+other/problem_description.ipynb
 
 
 # Byte-compiled / optimized / DLL files
